@@ -1,32 +1,60 @@
 # Burndown
 
-**The plan burns down. So does the budget. Burndown keeps both in view.**
+**The plan burns down. So does the window. Burndown keeps both in view.**
 
-A [Claude Code](https://claude.com/claude-code) mod for people who build real features across many context windows. It adds two small things:
+A [Claude Code](https://claude.com/claude-code) mod that adds one row above the prompt:
 
-- **A bar above the prompt** showing how full the context is, your rate limit (Max/Pro) or cost (API), and a sparkline per turn. A **Handoff** button appears before the window gets tight.
-- **A plan widget** in the corner: where you are in the plan, what's next, and how many windows it has taken. Open it for every step, its issue or PR, and a one-press handoff to a fresh window.
+```
+ctx 62% · 5h 41% · 2h 10m · ▁▂▄█ · 3/8 Wire payment step        [Handoff]
+```
 
-It reads Claude Code's own task list, so there's nothing new to learn and no second list for Claude to maintain.
+- **Context** used, coloured as it fills.
+- Your **rate limit** and when it resets (Pro and Max), or this window's **spend** (API key).
+- **Where the plan stands**, read from the task list Claude already keeps. Nothing to set up.
+- **Handoff**: when the window gets tight, one press asks Claude for a short brief. A second press starts a fresh window with that brief in the prompt, ready for you to read and send.
 
-> **Status: planning.** Nothing installs yet. This repo is being built in the open. Start with the plan and the review that challenged it.
+## Install
 
-## Read first
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): what we're building, how it maps to the Claude Code mod API, and the build phases.
-- [`docs/ADVERSARIAL-REVIEW.md`](docs/ADVERSARIAL-REVIEW.md): an independent agent's attempt to kill the plan, on six questions. Can Claude Code do it? Will it look right? Will it fit every screen? Is it useful? Is there product-market fit? What should change? Section 0 of the architecture doc lists what the review changed.
+At the prompt of a Claude Code terminal session:
 
-## Principles
-- **Honest numbers.** Every dollar figure is labeled an estimate, rounded, with unattributed spend shown as "other".
-- **Local only.** No network except read-only `gh`. Ledgers and handoffs are gitignored by default.
-- **Native look.** It draws with the host app's own components, so it fits every theme and surface.
+```
+/plugin install burndown --marketplace alexnmccarthy/burndown
+```
 
-## Roadmap
-0. Spike against the real desktop app and terminal
-1. **The bar** (ships on its own)
-2. Plan glance and full view
-3. One-press handoff
-4. Issue and PR links
-5. Launch
+Answer `y` to add the marketplace, then press Enter for the user scope. It's live right away, with no restart and no settings.
+
+From a shell:
+
+```bash
+claude plugin install burndown --marketplace alexnmccarthy/burndown
+```
+
+In the desktop app: click **+** next to the prompt box, then **Plugins**, **Add marketplace**, enter `alexnmccarthy/burndown`, then **Add plugin**.
+
+## What it can touch
+
+`claude plugin validate` lists every call a mod makes. Burndown's whole list:
+
+```
+$.session.usage  $.state  $.ui  $.clock.now  $.prompt.fill  $.prompt.submit  $.command.run
+```
+
+- No file access, no network, no shell, no model calls of its own. Nothing is written to disk.
+- It sends a prompt only when you press **Handoff**, and runs `/clear` only when you press **Start next window**.
+- It can't block a tool call or a prompt, even if it fails.
+- The spend shown is Claude Code's own estimate (the same figure as `/cost`), not a bill.
+
+## Uninstall
+
+```
+/plugin uninstall burndown
+```
+
+## Read more
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): what's built and why.
+- [`docs/ADVERSARIAL-REVIEW.md`](docs/ADVERSARIAL-REVIEW.md) and [`docs/ADVERSARIAL-REVIEW-2.md`](docs/ADVERSARIAL-REVIEW-2.md): two independent attempts to kill the plan, and what they changed.
 
 ## License
+
 MIT

@@ -1,0 +1,9 @@
+{
+  "name": "burndown",
+  "version": "0.1.0",
+  "description": "Context, rate limit and plan progress in one row above the prompt, and a one-press handoff to a fresh window.",
+  "author": { "name": "Alex McCarthy" },
+  "homepage": "https://github.com/alexnmccarthy/burndown",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

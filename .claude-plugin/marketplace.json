@@ -1,0 +1,6 @@
+{
+  "name": "burndown",
+  "description": "Burndown: context, limits and plan progress above the prompt, with a one-press handoff.",
+  "owner": { "name": "Alex McCarthy" },
+  "plugins": [{ "name": "burndown", "source": "./" }]
+}
