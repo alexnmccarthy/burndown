@@ -32,5 +32,5 @@ export function addTurn(m: Meter, usdAtStart: number | undefined): Meter {
 
 /** True once the window is tight enough to offer a handoff. */
 export function isTight(m: Meter): boolean {
-  return (m.contextPct ?? 0) >= 60 || (m.limit?.pct ?? 0) >= 85
+  return (m.contextPct ?? 0) >= 50 || (m.limit?.pct ?? 0) >= 85
 }

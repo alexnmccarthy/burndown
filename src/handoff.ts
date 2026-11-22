@@ -22,3 +22,6 @@ export const BRIEF_PROMPT = [
 export function nextWindowPrompt(brief: string): string {
   return `Continuing from the previous context window. Here is the handoff brief:\n\n${brief}\n\nRead the files listed above, then carry on with Next.`
 }
+
+/** What Track puts in the prompt box (never sent for you): ask for a task list to follow. */
+export const TRACK_PROMPT = 'Before going further, break this work into a short task list and keep it updated as you go.'

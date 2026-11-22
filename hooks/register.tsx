@@ -1,9 +1,10 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
-import type { BurndownHandoff } from '../types'
+import type { BurndownHandoff, BurndownRun } from '../types'
 
 import { bar } from '../src/bar'
-import { BRIEF_PROMPT, nextWindowPrompt } from '../src/handoff'
+import { BRIEF_PROMPT, nextWindowPrompt, TRACK_PROMPT } from '../src/handoff'
+import { pane } from '../src/pane'
 import { addTurn, EMPTY_METER, readMeter } from '../src/meter'
 import {
   EMPTY,
@@ -20,6 +21,17 @@ const IDLE: BurndownHandoff = { stage: 'idle' }
 const handoff = atom({ plugin: 'burndown', key: 'handoff' } as const, IDLE, {
   shape: 'handoff-1',
 })
+
+const FIRST_RUN: BurndownRun = { priorUsd: 0, windows: 1 }
+const run = atom({ plugin: 'burndown', key: 'run' } as const, FIRST_RUN, { shape: 'run-1' })
+const PANE = 'burndown'
+
+/** Asks Claude for the brief; a refused or dropped submit never starts a turn, so it resets. */
+async function startHandoff($: EngineInterface) {
+  await update($, handoff, (): BurndownHandoff => ({ stage: 'writing' }))
+  const sent = await $.prompt.submit({ text: BRIEF_PROMPT }).catch(() => undefined)
+  if (!sent || 'drop' in sent) await update($, handoff, () => IDLE)
+}
 
 /** Reads usage once (free) and stores what the bar shows. */
 async function refresh($: EngineInterface) {
@@ -54,6 +66,8 @@ export const register: Register = on => {
   // A /clear starts a new window: the old task list and turns no longer apply.
   on('session.end', async ($, e, next) => {
     if (e.reason === 'clear') {
+      const spent = (await read($, meter)).usd ?? 0
+      await update($, run, r => ({ priorUsd: r.priorUsd + spent, windows: r.windows + 1 }))
       await update($, plan, () => EMPTY)
       await update($, meter, () => EMPTY_METER)
       await update($, handoff, () => IDLE) // a brief from the old window must not offer itself in the new one
@@ -99,15 +113,11 @@ export const register: Register = on => {
       meter: m,
       plan: await read($, plan),
       handoff: await read($, handoff),
+      run: await read($, run),
       columns: e.props.bodyColumns,
       isWorking: e.props.isWorking,
       now: await $.clock.now(),
-      onHandoff: async () => {
-        await update($, handoff, (): BurndownHandoff => ({ stage: 'writing' }))
-        // A refused or dropped submit never starts a turn, so nothing would end 'writing'.
-        const sent = await $.prompt.submit({ text: BRIEF_PROMPT }).catch(() => undefined)
-        if (!sent || 'drop' in sent) await update($, handoff, () => IDLE)
-      },
+      onHandoff: () => startHandoff($),
       onNextWindow: async () => {
         const ho = await read($, handoff)
         if (ho.stage !== 'ready') return
@@ -116,6 +126,21 @@ export const register: Register = on => {
         await $.prompt.fill({ text: nextWindowPrompt(ho.brief) })
       },
       onCancel: () => update($, handoff, () => IDLE),
+      onPlan: () => $.ui.open({ id: PANE, title: 'Plan', placement: 'widget' }),
+      onTrack: () => $.prompt.fill({ text: TRACK_PROMPT }),
     })
   }).catch(($, e, next) => next(e)) // an older build refusing a prop draws nothing, never an error
+
+  // The plan card: a glance as a widget, every step docked.
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const m = await read($, meter)
+    return pane($.ui.resolve(e), {
+      plan: await read($, plan),
+      run: await read($, run),
+      usd: m.usd,
+      placement: e.props.placement,
+      columns: e.props.bodyColumns,
+      onHandoff: () => startHandoff($),
+    })
+  })
 }

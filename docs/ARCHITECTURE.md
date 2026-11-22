@@ -8,9 +8,9 @@
 
 | v2 said | Review 2 found | v3 does |
 |---|---|---|
-| A bar, a corner widget and a full view | The widget shows nothing until Claude makes tasks, is desktop-only, and needs the widest access | **The bar only.** The plan lives in the bar as `3/8 Wire payment step`. Widget is v1.1 |
+| A bar, a corner widget and a full view | The widget shows nothing until Claude makes tasks, is desktop-only, and needs the widest access | **The bar first, the card on demand.** The plan chip opens the card; nothing opens unasked |
 | Handoff: `$.model.fork` summary, write a file, `/clear`, fill | `model.fork` spends a large prompt on a press. `fs.write` and `.gitignore` edits make a careful installer nervous | **Claude writes the brief as its reply.** The mod carries the reply into the next prompt. No file, no model call of the mod's own |
-| Thresholds in `userConfig` | Any `userConfig` adds a settings screen to the install | **No config.** Fixed thresholds: context 60%, limit 85% |
+| Thresholds in `userConfig` | Any `userConfig` adds a settings screen to the install | **No config.** Fixed thresholds: context 50%, limit 85% |
 | `gh` status for issue links | `$.process.run` can run any program, and that's the scariest line in the call list | **Cut.** Links are later, if ever |
 | Ledger in `$.store` and a gitignored file, cost per step | Cost per step is a number nobody acts on, and on a subscription it isn't a charge | **Cut.** This window's spend, rounded, and only on an API key |
 | Plan from `TaskCreate`/`TaskUpdate` | The desktop app uses its own task tool, and some hosts still use `TodoWrite` | **Three sources, one shape** (§3) |
@@ -21,28 +21,37 @@
 
 ```
 calls: $.clock.now, $.command.run, $.prompt.fill, $.prompt.submit,
-       $.session.usage, $.state.get, $.state.set, $.ui.resolve
+       $.session.usage, $.state.get, $.state.set, $.ui.open, $.ui.resolve
 ```
 
 - **No** `$.fs`, `$.process`, `$.http`, `$.model`, `$.tool.register` or `$.store`. Nothing leaves the machine and nothing is written to disk.
 - `$.prompt.submit` runs only when you press **Handoff**. It sends one visible prompt asking for the brief.
 - `$.command.run('clear')` runs only when you press **Start next window**, after the brief is on screen.
+- `$.ui.open` runs only when you press the plan chip, to show the plan card.
+- `$.prompt.fill` also runs when you press **Track**: it puts a request for a task list in the box and sends nothing.
 - The two observer hooks (`prompt.submit`, `tool.call`) have a `.catch` that hands the call through untouched. Burndown can't block a tool or a prompt, even if it fails.
 
 ## 2. The bar
 
-One row, sized to `bodyColumns` (which already shrinks when a pane is docked).
+Laid out like the canvas, in one row sized to `bodyColumns` (which already shrinks when a pane is docked):
+
+```
+This window  ≈$3.10  ▂▃▅▇  [▓▓▓▓░░░░]  62% context  │ 7d 57% · resets in 2d 2h  │ Total ≈$17      [Handoff]  ● 3/8 Wire payment step ⌄
+```
 
 | Part | Shows | Drops below |
 |---|---|---|
-| Context | `ctx 62%`, warning colour from 60%, error from 85% | never |
-| Limit (subscription) | `5h 41% · 2h 10m` (the tightest window and the time to its reset) | the reset hides below 70 cells |
-| Spend (API key) | `≈$3.10`, at most 6 cells. Hidden until there's a cost, so a Max user never sees dollars flip to limits | 45 cells |
-| Sparkline | `▁▂▄█`, spend per turn, last 12 | 90 cells |
-| Plan | `3/8 Wire payment step`, the title gets whatever room is left | the title hides under 8 cells of room |
-| Right | `[Handoff]` once tight · `Writing brief…` · `[Start next window] [Not now]` | never |
+| Spend | "This window" and `≈$3.10` in semibold (a fixed 6-cell slot) | the label at 70 cells, the figure at 45 |
+| Sparkline | spend per turn, last 12: 3 px SVG bars with the newest in cobalt; block characters on the terminal | 100 cells |
+| Context | a 72×6 rounded SVG meter (cobalt, orange from 60%, red from 85%) and `62% context`; `▓▓▓░░` on the terminal | never |
+| Limit | the tightest window (`5h` / `7d`) and the time to its reset, after a divider | the reset at 70 cells |
+| Total | the spend of every window since this process started, from the second window on | 100 cells |
+| Right | `Handoff` from 50% context or 85% of a limit, then the plan chip `● 3/8 step ⌄`, or `○ Track` with no plan | never |
 
-The bar draws nothing until the first usage reading, and yields to surveys. The engine's own `[-]` collapses it.
+The host draws the band itself: the grey container, its corners, the font and button chrome. A mod can't set those, so the canvas's tint and pill shapes don't carry over.
+
+### The plan card
+The chip opens a pane (`$.ui.open`, asked for as a widget). As a **widget** it's a glance with nothing to click: `Plan · Window 2 · step 3 of 8`, a progress meter, the step in flight and the next one. **Docked** it lists every step (done steps struck through with ✓, the current one semibold in cobalt with "In progress", "Up next" under the next one), folds finished steps once there are more than 20, and ends with the total and a Handoff button.
 
 ## 3. The plan, from the task list Claude already keeps
 
@@ -56,7 +65,7 @@ Burndown never asks Claude to keep a second list. Subagent calls are ignored. A 
 
 ## 4. Handoff
 
-1. **Handoff** (shown once context ≥ 60% or a limit ≥ 85%) submits a fixed prompt (`src/handoff.ts`): reply with only a brief under 300 words in six fields, Goal, Done, Next, Open, Watch out and Files, run no tools, include no secrets.
+1. **Handoff** (shown once context ≥ 50% or a limit ≥ 85%) submits a fixed prompt (`src/handoff.ts`): reply with only a brief under 300 words in six fields, Goal, Done, Next, Open, Watch out and Files, run no tools, include no secrets.
 2. When that turn ends with an answer, the bar shows **Start next window** and **Not now**.
 3. **Start next window** runs `/clear`, then fills the prompt with the brief. You read it, edit it, and press Enter. Nothing is sent for you.
 
@@ -72,6 +81,8 @@ hooks/register.tsx                the wiring: six hooks, three atoms
 src/meter.ts                      usage → what the bar shows (pure)
 src/plan.ts                       three task tools → one plan (pure)
 src/bar.tsx                       the row, tiered by width (pure)
+src/pane.tsx                      the plan card: glance as a widget, full list docked (pure)
+src/svg.ts                        the meter and sparkline drawings (pure)
 src/handoff.ts                    the brief prompt and the next-window prompt
 src/format.ts                     money, time to reset, sparkline, clip (pure)
 types/index.d.ts                  the $.state contract
@@ -81,12 +92,11 @@ test/                             claude plugin test: pure tables + render on 4 
 ## 6. Checks
 
 - `claude plugin validate .` passes and prints the call list above.
-- `claude plugin test .` runs 12 tests: formatting tables, the three plan sources, and the bar mounted on terminal, desktop, VS Code and mobile, including the full handoff flow, a Handoff pressed mid-turn and a refused submit.
+- `claude plugin test .` runs 15 tests: formatting tables, the three plan sources, the bar and the plan card mounted on terminal, desktop, VS Code and mobile, the full handoff flow, a Handoff pressed mid-turn, a refused submit, Track, and the total across a /clear.
 - `tsc -p .` is clean under `strict` and `noUncheckedIndexedAccess`.
 
 ## 7. Later
 
-- v1.1: the plan widget (a glance only, no clicks) for desktop, opened after the first task.
 - CI that fails if `claude plugin validate --json` lists a call outside the allowlist in §1.
 - Maybe: a status-line command for terminal users who don't install mods.
 - Not planned: `gh` links, cost per step, team rollups. Each one widens the access list.

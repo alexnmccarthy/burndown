@@ -13,6 +13,9 @@ export type BurndownMeter = {
   turns: number[]
 }
 
+/** Earlier windows of this run: their spend and the count, this one included. */
+export type BurndownRun = { priorUsd: number; windows: number }
+
 /** idle: nothing asked. writing: Claude is writing the brief. ready: the brief is in hand. */
 export type BurndownHandoff =
   | { stage: 'idle' }
@@ -25,6 +28,7 @@ declare module 'claude-code' {
       meter: Shaped<BurndownMeter>
       plan: Shaped<BurndownPlan>
       handoff: Shaped<BurndownHandoff>
+      run: Shaped<BurndownRun>
     }
   }
 }

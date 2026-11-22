@@ -5,12 +5,12 @@
 A [Claude Code](https://claude.com/claude-code) mod that adds one row above the prompt:
 
 ```
-ctx 62% · 5h 41% · 2h 10m · ▁▂▄█ · 3/8 Wire payment step        [Handoff]
+This window ≈$3.10 ▂▃▅▇ ▓▓▓▓░░░░ 62% context │ 7d 57% · resets in 2d 2h      Handoff  ● 3/8 Wire payment step ⌄
 ```
 
 - **Context** used, coloured as it fills.
-- Your **rate limit** and when it resets (Pro and Max), or this window's **spend** (API key).
-- **Where the plan stands**, read from the task list Claude already keeps. Nothing to set up.
+- This window's **spend** (Claude Code's own estimate, as `/cost` shows it), and on Pro and Max your **rate limit** and when it resets.
+- **Where the plan stands**, read from the task list Claude already keeps. Nothing to set up. Press the chip for the plan card; with no plan, **Track** asks Claude for a task list.
 - **Handoff**: when the window gets tight, one press asks Claude for a short brief. A second press starts a fresh window with that brief in the prompt, ready for you to read and send.
 
 ## Install
