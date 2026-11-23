@@ -29,6 +29,8 @@ declare module 'claude-code' {
       plan: Shaped<BurndownPlan>
       handoff: Shaped<BurndownHandoff>
       run: Shaped<BurndownRun>
+      /** Whether the plan card is open above the bar. */
+      isPlanOpen: Shaped<boolean>
     }
   }
 }

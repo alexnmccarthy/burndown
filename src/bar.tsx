@@ -4,7 +4,7 @@ import type { BurndownHandoff, BurndownMeter, BurndownPlan } from '../types'
 import { clip, limitLabel, money, sparkline, untilReset } from './format'
 import { isTight } from './meter'
 import { summary } from './plan'
-import { COBALT, fillFor, meterSvg, sparkSvg } from './svg'
+import { COBALT, DOT, fillFor, meterSvg, sparkSvg } from './svg'
 
 export type BarProps = {
   meter: BurndownMeter
@@ -12,8 +12,12 @@ export type BarProps = {
   handoff: BurndownHandoff
   /** Spend of earlier windows in this run, and how many windows so far. */
   run: { priorUsd: number; windows: number }
+  /** `e.surface`: the terminal draws no Svg. */
+  surface: string
   columns: number
   isWorking: boolean
+  /** The plan card is open above the bar: the chip's arrow points up. */
+  isPlanOpen: boolean
   now: number
   onHandoff: () => unknown
   onNextWindow: () => unknown
@@ -30,7 +34,8 @@ const ctxTone = (pct: number) => (pct >= 85 ? 'error' : pct >= 60 ? 'warning' : 
  */
 export function bar(ui: ElementTable, p: BarProps) {
   const { Box, Text, Button } = ui
-  const Svg = 'Svg' in ui ? ui.Svg : undefined
+  // The terminal is the one surface without Svg; its table still answers 'Svg' in ui.
+  const Svg = p.surface !== 'terminal' && 'Svg' in ui ? ui.Svg : undefined
   const m = p.meter
   const cols = p.columns
   const wide = cols >= 100
@@ -96,11 +101,16 @@ export function bar(ui: ElementTable, p: BarProps) {
           <Button key="next" label="Start next window" variant="primary" onPress={p.onNextWindow} />
         )}
         {ho.stage === 'ready' && <Button key="cancel" label="Not now" onPress={p.onCancel} />}
+        {s.total > 0 && !s.isDone && Svg && (
+          <Svg source={DOT} alt="" width={8} height={8} />
+        )}
+        {s.total > 0 && (s.isDone || !Svg) && (
+          <Text color={s.isDone ? 'success' : COBALT}>
+            {s.isDone ? '✓' : '●'}
+          </Text>
+        )}
         {s.total > 0 ? (
-          <Button key="plan" onPress={p.onPlan}>
-            <Text color={s.isDone ? 'success' : COBALT}>{s.isDone ? '✓' : '●'}</Text>
-            {` ${s.done}/${s.total}${chipTitle} ⌄`}
-          </Button>
+          <Button key="plan" label={`${s.done}/${s.total}${chipTitle} ${p.isPlanOpen ? '⌃' : '⌄'}`} onPress={p.onPlan} />
         ) : (
           mid && (
             <Button key="track" onPress={p.onTrack}>

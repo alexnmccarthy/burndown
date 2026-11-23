@@ -10,7 +10,7 @@ This window ≈$3.10 ▂▃▅▇ ▓▓▓▓░░░░ 62% context │ 7d 57
 
 - **Context** used, coloured as it fills.
 - This window's **spend** (Claude Code's own estimate, as `/cost` shows it), and on Pro and Max your **rate limit** and when it resets.
-- **Where the plan stands**, read from the task list Claude already keeps. Nothing to set up. Press the chip for the plan card; with no plan, **Track** asks Claude for a task list.
+- **Where the plan stands**, read from the task list Claude already keeps. Nothing to set up. Press the chip and the plan card opens right above the bar; with no plan, **Track** asks Claude for a task list.
 - **Handoff**: when the window gets tight, one press asks Claude for a short brief. A second press starts a fresh window with that brief in the prompt, ready for you to read and send.
 
 ## Install

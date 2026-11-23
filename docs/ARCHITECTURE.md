@@ -21,13 +21,12 @@
 
 ```
 calls: $.clock.now, $.command.run, $.prompt.fill, $.prompt.submit,
-       $.session.usage, $.state.get, $.state.set, $.ui.open, $.ui.resolve
+       $.session.usage, $.state.get, $.state.set, $.ui.resolve
 ```
 
 - **No** `$.fs`, `$.process`, `$.http`, `$.model`, `$.tool.register` or `$.store`. Nothing leaves the machine and nothing is written to disk.
 - `$.prompt.submit` runs only when you press **Handoff**. It sends one visible prompt asking for the brief.
 - `$.command.run('clear')` runs only when you press **Start next window**, after the brief is on screen.
-- `$.ui.open` runs only when you press the plan chip, to show the plan card.
 - `$.prompt.fill` also runs when you press **Track**: it puts a request for a task list in the box and sends nothing.
 - The two observer hooks (`prompt.submit`, `tool.call`) have a `.catch` that hands the call through untouched. Burndown can't block a tool or a prompt, even if it fails.
 
@@ -46,12 +45,16 @@ This window  ≈$3.10  ▂▃▅▇  [▓▓▓▓░░░░]  62% context  �
 | Context | a 72×6 rounded SVG meter (cobalt, orange from 60%, red from 85%) and `62% context`; `▓▓▓░░` on the terminal | never |
 | Limit | the tightest window (`5h` / `7d`) and the time to its reset, after a divider | the reset at 70 cells |
 | Total | the spend of every window since this process started, from the second window on | 100 cells |
-| Right | `Handoff` from 50% context or 85% of a limit, then the plan chip `● 3/8 step ⌄`, or `○ Track` with no plan | never |
+| Right | `Handoff` from 50% context or 85% of a limit, then the plan chip `● 3/8 step ⌄` (the step from 70 cells), or `○ Track` with no plan | never |
 
-The host draws the band itself: the grey container, its corners, the font and button chrome. A mod can't set those, so the canvas's tint and pill shapes don't carry over.
+The host draws the band itself: the grey container, its corners, the font and button chrome. A mod can't set those, so the canvas's tint and pill shapes don't carry over. A desktop button draws its own label and drops colour inside it, so the chip's cobalt dot is a separate SVG beside the button.
+
+The terminal has no `Svg`, but its element table still answers `'Svg' in ui`, so the bar and card choose SVG or block characters by `e.surface`.
 
 ### The plan card
-The chip opens a pane (`$.ui.open`, asked for as a widget). As a **widget** it's a glance with nothing to click: `Plan · Window 2 · step 3 of 8`, a progress meter, the step in flight and the next one. **Docked** it lists every step (done steps struck through with ✓, the current one semibold in cobalt with "In progress", "Up next" under the next one), folds finished steps once there are more than 20, and ends with the total and a Handoff button.
+The chip opens the card inside the band, right above the bar, and a second press closes it (the arrow flips `⌄`/`⌃`). It shows `Plan · Window 2 · step 3 of 8`, a progress meter, every step (done ones struck through with ✓, the current one semibold in cobalt with "In progress", "Up next" on the next), and the total with a Handoff button. When the steps won't fit the band's `maxRows`, finished steps fold into one line, then the far end shows as `○ N more`; a band too short for the card still shows the current step and scrolls. The card's Handoff shows only while no brief is being written or waiting, and an emptied plan closes the card so the next list doesn't pop it open.
+
+Why not a pane: `$.ui.open({ placement: 'widget' })` is only a request, and a desktop without widgets opens it as a side drawer. The band is the one place above the prompt a mod draws on every surface, so the card lives there.
 
 ## 3. The plan, from the task list Claude already keeps
 
@@ -81,7 +84,7 @@ hooks/register.tsx                the wiring: six hooks, three atoms
 src/meter.ts                      usage → what the bar shows (pure)
 src/plan.ts                       three task tools → one plan (pure)
 src/bar.tsx                       the row, tiered by width (pure)
-src/pane.tsx                      the plan card: glance as a widget, full list docked (pure)
+src/card.tsx                      the plan card, drawn in the band above the bar (pure)
 src/svg.ts                        the meter and sparkline drawings (pure)
 src/handoff.ts                    the brief prompt and the next-window prompt
 src/format.ts                     money, time to reset, sparkline, clip (pure)
@@ -92,7 +95,7 @@ test/                             claude plugin test: pure tables + render on 4 
 ## 6. Checks
 
 - `claude plugin validate .` passes and prints the call list above.
-- `claude plugin test .` runs 15 tests: formatting tables, the three plan sources, the bar and the plan card mounted on terminal, desktop, VS Code and mobile, the full handoff flow, a Handoff pressed mid-turn, a refused submit, Track, and the total across a /clear.
+- `claude plugin test .` runs 21 tests: formatting tables, the three plan sources (the desktop task list replayed call by call), the bar and the plan card opened and closed on terminal, desktop, VS Code and mobile, the chip's step at mid width, a long plan folding to fit, a short band, an emptied plan, a second Handoff from the card, the full handoff flow, a Handoff pressed mid-turn, a refused submit, Track, and the total across a /clear.
 - `tsc -p .` is clean under `strict` and `noUncheckedIndexedAccess`.
 
 ## 7. Later

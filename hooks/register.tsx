@@ -4,7 +4,7 @@ import type { BurndownHandoff, BurndownRun } from '../types'
 
 import { bar } from '../src/bar'
 import { BRIEF_PROMPT, nextWindowPrompt, TRACK_PROMPT } from '../src/handoff'
-import { pane } from '../src/pane'
+import { card } from '../src/card'
 import { addTurn, EMPTY_METER, readMeter } from '../src/meter'
 import {
   EMPTY,
@@ -24,7 +24,7 @@ const handoff = atom({ plugin: 'burndown', key: 'handoff' } as const, IDLE, {
 
 const FIRST_RUN: BurndownRun = { priorUsd: 0, windows: 1 }
 const run = atom({ plugin: 'burndown', key: 'run' } as const, FIRST_RUN, { shape: 'run-1' })
-const PANE = 'burndown'
+const isPlanOpen = atom({ plugin: 'burndown', key: 'isPlanOpen' } as const, false, { shape: 'open-1' })
 
 /** Asks Claude for the brief; a refused or dropped submit never starts a turn, so it resets. */
 async function startHandoff($: EngineInterface) {
@@ -71,6 +71,7 @@ export const register: Register = on => {
       await update($, plan, () => EMPTY)
       await update($, meter, () => EMPTY_METER)
       await update($, handoff, () => IDLE) // a brief from the old window must not offer itself in the new one
+      await update($, isPlanOpen, () => false)
     }
     return next(e)
   })
@@ -101,23 +102,36 @@ export const register: Register = on => {
       const todos = onTodoWrite(e)
       if (todos) await update($, plan, () => todos)
     } else if (isDesktopPlanTool(tool)) await update($, plan, p => onDesktopPlan(p, e))
+    // An emptied plan hides the chip, so nothing could close the card: close it here.
+    if ((await read($, plan)).steps.length === 0) await update($, isPlanOpen, () => false)
     return out
   }).catch(($, e, next) => next(e))
 
+  // The bar, and the plan card above it while open. The band is ours to draw on every surface;
+  // a widget is only a request a desktop without widgets answers with a side drawer.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
     const m = await read($, meter)
     if (m.contextPct === undefined && m.usd === undefined && !m.limit) return next(e)
     const ui = $.ui.resolve(e)
-    return bar(ui, {
+    const p = await read($, plan)
+    const r = await read($, run)
+    // Header, meter, footer and the gaps take 7 rows; the bar takes 1. A shorter band still shows one step and scrolls.
+    const maxSteps = Math.max(1, e.props.maxRows - 8)
+    const isOpen = (await read($, isPlanOpen)) && p.steps.length > 0
+    const ho = await read($, handoff)
+    const onHandoff = () => startHandoff($)
+    const row = bar(ui, {
       meter: m,
-      plan: await read($, plan),
-      handoff: await read($, handoff),
-      run: await read($, run),
+      plan: p,
+      handoff: ho,
+      run: r,
+      surface: e.surface,
       columns: e.props.bodyColumns,
       isWorking: e.props.isWorking,
+      isPlanOpen: isOpen,
       now: await $.clock.now(),
-      onHandoff: () => startHandoff($),
+      onHandoff,
       onNextWindow: async () => {
         const ho = await read($, handoff)
         if (ho.stage !== 'ready') return
@@ -126,21 +140,25 @@ export const register: Register = on => {
         await $.prompt.fill({ text: nextWindowPrompt(ho.brief) })
       },
       onCancel: () => update($, handoff, () => IDLE),
-      onPlan: () => $.ui.open({ id: PANE, title: 'Plan', placement: 'widget' }),
+      onPlan: () => update($, isPlanOpen, o => !o),
       onTrack: () => $.prompt.fill({ text: TRACK_PROMPT }),
     })
+    if (!isOpen) return row
+    const { Box } = ui
+    return (
+      <Box flexDirection="column" width="100%">
+        {card(ui, {
+          plan: p,
+          run: r,
+          usd: m.usd,
+          surface: e.surface,
+          columns: e.props.bodyColumns,
+          maxSteps,
+          canHandoff: ho.stage === 'idle',
+          onHandoff,
+        })}
+        {row}
+      </Box>
+    )
   }).catch(($, e, next) => next(e)) // an older build refusing a prop draws nothing, never an error
-
-  // The plan card: a glance as a widget, every step docked.
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const m = await read($, meter)
-    return pane($.ui.resolve(e), {
-      plan: await read($, plan),
-      run: await read($, run),
-      usd: m.usd,
-      placement: e.props.placement,
-      columns: e.props.bodyColumns,
-      onHandoff: () => startHandoff($),
-    })
-  })
 }

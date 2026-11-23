@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import type { TestBody } from 'claude-code/testing'
 
 import { BRIEF_PROMPT } from '../src/handoff'
 
@@ -177,15 +178,10 @@ test('no plan: Track fills the prompt with a request for a task list, and sends 
   await ui.unmount()
 })
 
-test('the plan chip opens the plan card; the card lists every step on every surface', async ($, on) => {
-  const opened: string[] = []
+test('the plan chip opens the plan card above the bar, and closes it; the dot is cobalt', async ($, on) => {
   on('session.usage', () => ({ value: usage(40) }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('clock.now', () => ({ value: NOW }))
-  on('ui.open', (_, e) => {
-    opened.push(e.id)
-    return { value: { isPlaced: true } }
-  })
   on('tool.call', () => ({ result: {} }))
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
   await $.tool.call({
@@ -197,32 +193,25 @@ test('the plan chip opens the plan card; the card lists every step on every surf
     ],
   })
 
-  const bandUi = await $.ui.mount({ ...band(120), surface: 'desktop' })
-  await bandUi.press({ key: 'plan' })
-  expect(opened).toEqual(['burndown'])
-  await bandUi.unmount()
-
   for (const surface of SURFACES) {
-    for (const placement of ['dock', 'widget'] as const) {
-      const card = await $.ui.mount({
-        plugin: 'burndown',
-        component: 'Pane',
-        requestId: 'burndown',
-        surface,
-        props: { title: 'Plan', isFocused: false, bodyColumns: 40, placement, scroll: { offset: 0, bodyRows: 20 }, view: {} },
-      })
-      expect((await card.find({ type: 'Text', text: /step 2 of 3/ }))?.text).toContain('Window 1 · step 2 of 3')
-      expect((await card.find({ type: 'Text', text: /Wire payment step/ }))?.text).toContain('Wire payment step')
-      if (placement === 'dock') {
-        expect((await card.find({ type: 'Text', text: /^Audit current flow$/ }))?.props).toMatchObject({ strikethrough: true })
-        expect((await card.find({ type: 'Text', text: /Up next/ }))?.text).toContain('Up next')
-      } else {
-        // The glance shows the step in flight and the next one, nothing to click.
-        expect((await card.find({ type: 'Text', text: /next: Error states/ }))?.text).toContain('Error states')
-        expect(await card.find({ key: 'pane-handoff' })).toBe(undefined)
-      }
-      await card.unmount()
-    }
+    const ui = await $.ui.mount({ ...band(120), surface, props: { ...band(120).props, maxRows: 20 } })
+    // The dot sits outside the button, where a desktop's native button can't drop its colour.
+    const dot =
+      surface === 'terminal'
+        ? (await ui.find({ type: 'Text', text: /^●$/ }))?.props.color
+        : JSON.stringify((await ui.find({ type: 'Box', text: /Wire payment/ }))?.children)
+    expect(String(dot)).toContain('#2B4BEE')
+    expect(await ui.find({ type: 'Text', text: /step 2 of 3/ })).toBe(undefined)
+
+    await ui.press({ key: 'plan' })
+    expect((await ui.find({ type: 'Text', text: /step 2 of 3/ }))?.text).toContain('Window 1 · step 2 of 3')
+    expect((await ui.find({ type: 'Text', text: /^Audit current flow$/ }))?.props).toMatchObject({ strikethrough: true })
+    expect((await ui.find({ type: 'Text', text: /Up next/ }))?.text).toContain('Up next')
+    expect(await ui.find({ key: 'pane-handoff' })).toBeDefined()
+
+    await ui.press({ key: 'plan' })
+    expect(await ui.find({ type: 'Text', text: /step 2 of 3/ })).toBe(undefined)
+    await ui.unmount()
   }
 })
 
@@ -288,4 +277,66 @@ test('a mid-width bar still names the current step on the chip', async ($, on) =
   })
   const ui = await $.ui.mount({ ...band(80), surface: 'desktop' })
   expect((await ui.find({ type: 'Button', key: 'plan' }))?.text).toContain('0/2 Read what')
+})
+
+const setup = async ($: Parameters<TestBody>[0], on: Parameters<TestBody>[1], sent: string[] = []) => {
+  on('session.usage', () => ({ value: usage(40) }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('clock.now', () => ({ value: NOW }))
+  on('tool.call', () => ({ result: 'ok' }))
+  on('prompt.submit', (_, e) => {
+    sent.push(e.text)
+    return { text: e.text }
+  })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+}
+const list = (done: number, open: number) => ({
+  tool: 'mcp__ccd_turn__update_plan' as const,
+  items: [
+    ...Array.from({ length: done }, (_, n) => ({ content: `Done ${n + 1}`, status: 'completed' as const })),
+    ...Array.from({ length: open }, (_, n) => ({ content: `Open ${n + 1}`, status: n === 0 ? ('in_progress' as const) : ('pending' as const) })),
+  ],
+})
+const sized = (maxRows: number) => ({ ...band(120), surface: 'desktop' as const, props: { ...band(120).props, maxRows } })
+
+test('a long plan fits the band: done steps fold, the far end reads "N more"', async ($, on) => {
+  await setup($, on)
+  await $.tool.call(list(3, 5))
+  const ui = await $.ui.mount(sized(12)) // 4 step rows
+  await ui.press({ key: 'plan' })
+  const rows = [/^✓ 3 done$/, /Open 1/, /Open 2/, /○ 3 more/]
+  for (const r of rows) expect(await ui.find({ type: 'Text', text: r })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Open 3/ })).toBe(undefined)
+})
+
+test('a band too short for the card still shows the current step and the rest as "N more"', async ($, on) => {
+  await setup($, on)
+  await $.tool.call(list(0, 3))
+  const ui = await $.ui.mount(sized(6))
+  await ui.press({ key: 'plan' })
+  expect(await ui.find({ type: 'Text', text: /Open 1/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /○ 2 more/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Open 2/ })).toBe(undefined)
+  expect(await ui.find({ key: 'plan' })).toBeDefined()
+})
+
+test('an emptied plan closes the card, so the next list does not pop it open', async ($, on) => {
+  await setup($, on)
+  await $.tool.call(list(0, 2))
+  const ui = await $.ui.mount(sized(20))
+  await ui.press({ key: 'plan' })
+  await $.tool.call({ tool: 'mcp__ccd_turn__update_plan', items: [] })
+  await $.tool.call(list(0, 2))
+  expect(await ui.find({ type: 'Text', text: /step 1 of 2/ })).toBe(undefined)
+})
+
+test("the card's Handoff sends one brief, then hides while it's written", async ($, on) => {
+  const sent: string[] = []
+  await setup($, on, sent)
+  await $.tool.call(list(0, 2))
+  const ui = await $.ui.mount(sized(20))
+  await ui.press({ key: 'plan' })
+  await ui.press({ key: 'pane-handoff' })
+  expect(sent.length).toBe(1)
+  expect(await ui.find({ key: 'pane-handoff' })).toBe(undefined)
 })
