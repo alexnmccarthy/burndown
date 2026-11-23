@@ -44,7 +44,7 @@ export function bar(ui: ElementTable, p: BarProps) {
 
   // The chip: the plan's count and step, or Track when there is none.
   const step = s.isDone ? 'done' : (s.current ?? s.next)?.title
-  const chipTitle = step && wide ? ` ${clip(step, 28)}` : ''
+  const chipTitle = step && mid ? ` ${clip(step, wide ? 28 : 18)}` : ''
   const ctxBlocks = pct === undefined ? 0 : Math.min(5, Math.round(pct / 20))
 
   return (

@@ -246,3 +246,46 @@ test('a /clear starts window 2 and the bar shows the total across windows', asyn
   expect((await ui.find({ type: 'Text', text: /≈\$5\.50/ }))?.text).toBe('≈$5.50')
   await ui.unmount()
 })
+
+test("the desktop app's own task list drives the chip, step by step", async ($, on) => {
+  on('session.usage', () => ({ value: usage(40) }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('clock.now', () => ({ value: NOW }))
+  on('tool.call', () => ({ result: 'Plan shown (3 steps).' }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  const chip = async () => {
+    const ui = await $.ui.mount({ ...band(120), surface: 'desktop' })
+    const b = await ui.find({ type: 'Button', key: 'plan' })
+    await ui.unmount()
+    return b?.text
+  }
+
+  await $.tool.call({
+    tool: 'mcp__ccd_turn__update_plan',
+    items: [
+      { content: 'Find the cause', status: 'in_progress' },
+      { content: 'Fix the visual', status: 'pending' },
+      { content: 'Push', status: 'pending' },
+    ],
+    scope: 'continuation',
+  })
+  expect(await chip()).toContain('0/3 Find the cause')
+  await $.tool.call({ tool: 'mcp__ccd_turn__update_plan', advance: true })
+  expect(await chip()).toContain('1/3 Fix the visual')
+  await $.tool.call({ tool: 'mcp__ccd_turn__update_plan', done: [2, 3] })
+  expect(await chip()).toContain('3/3 done')
+})
+
+test('a mid-width bar still names the current step on the chip', async ($, on) => {
+  on('session.usage', () => ({ value: usage(40) }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('clock.now', () => ({ value: NOW }))
+  on('tool.call', () => ({ result: 'ok' }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.tool.call({
+    tool: 'mcp__ccd_turn__update_plan',
+    items: [{ content: 'Read what the probe recorded', status: 'in_progress' }, { content: 'Fix', status: 'pending' }],
+  })
+  const ui = await $.ui.mount({ ...band(80), surface: 'desktop' })
+  expect((await ui.find({ type: 'Button', key: 'plan' }))?.text).toContain('0/2 Read what')
+})
